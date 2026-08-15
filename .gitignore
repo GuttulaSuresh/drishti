@@ -1,0 +1,7 @@
+.DS_Store
+.MyDangleBuild/
+xcuserdata/
+*.xcuserstate
+DerivedData/
+build/
+*.app

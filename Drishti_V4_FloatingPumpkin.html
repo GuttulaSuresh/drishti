@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Drishti V4 Floating Pumpkin</title>
+<style>
+html,body{
+  margin:0;
+  width:100%;
+  height:100%;
+  overflow:hidden;
+  background:transparent;
+  user-select:none;
+  cursor:default;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+#app{position:relative;width:100%;height:100%;overflow:hidden;background:transparent}
+#pumpkin{
+  position:absolute;
+  left:74%;
+  top:30%;
+  width:250px;
+  height:250px;
+  transform:translate(-50%,-50%);
+  will-change:left,top,transform,filter;
+  pointer-events:none;
+  filter:drop-shadow(0 22px 18px rgba(0,0,0,.38));
+}
+#pumpkin img{
+  display:block;
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  pointer-events:none;
+}
+.fragment{
+  position:absolute;
+  pointer-events:none;
+  z-index:10;
+  filter:drop-shadow(0 6px 6px rgba(0,0,0,.18));
+  will-change:transform, opacity;
+}
+.smoke{
+  position:absolute;
+  z-index:9;
+  width:18px;height:18px;
+  border-radius:50%;
+  background:rgba(220,220,220,.35);
+  filter:blur(7px);
+  pointer-events:none;
+}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="pumpkin"><img id="pumpkinImg" src="assets/pumpkin_camphor.png" alt=""></div>
+</div>
+
+<script>
+(() => {
+  const app = document.getElementById('app');
+  const pumpkin = document.getElementById('pumpkin');
+  const pumpkinImg = document.getElementById('pumpkinImg');
+
+  let pos = {x: window.innerWidth * 0.74, y: window.innerHeight * 0.30};
+  let follow = false;
+  let completed = false;
+  let lastPointer = {x: pos.x, y: pos.y};
+  let vel = {x: 0, y: 0};
+  let tilt = 0;
+
+  function nativePost(msg){
+    try{
+      if(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.native){
+        window.webkit.messageHandlers.native.postMessage(msg);
+      }
+    }catch(e){}
+  }
+
+  function clamp(v,min,max){return Math.max(min, Math.min(max,v));}
+
+  function setPumpkin(x,y){
+    const w = pumpkin.offsetWidth || 250;
+    const h = pumpkin.offsetHeight || 250;
+    pos.x = clamp(x, w/2, window.innerWidth - w/2);
+    pos.y = clamp(y, h/2, window.innerHeight - h/2);
+    pumpkin.style.left = pos.x + 'px';
+    pumpkin.style.top = pos.y + 'px';
+    pumpkin.style.transform = `translate(-50%,-50%) rotate(${tilt.toFixed(2)}deg)`;
+  }
+
+  function hitPumpkin(x,y){
+    const r = pumpkin.getBoundingClientRect();
+    const pad = 10;
+    return x >= r.left-pad && x <= r.right+pad && y >= r.top-pad && y <= r.bottom+pad;
+  }
+
+  function maybeFollow(x,y){
+    if(completed) return;
+    if(!follow && hitPumpkin(x,y)){
+      follow = true;
+    }
+    if(follow){
+      const dx = x - lastPointer.x;
+      const dy = y - lastPointer.y;
+      vel.x = dx; vel.y = dy;
+      tilt = clamp(dx * 0.35, -18, 18);
+      setPumpkin(x, y);
+      const h = pumpkin.offsetHeight || 250;
+      if(pos.y + h/2 >= window.innerHeight - 8){
+        breakPumpkin();
+      }
+    }
+    lastPointer = {x,y};
+  }
+
+  function createSmokeBurst(x, y){
+    for(let i=0;i<8;i++){
+      const s = document.createElement('div');
+      s.className = 'smoke';
+      s.style.left = x + 'px';
+      s.style.top = y + 'px';
+      app.appendChild(s);
+      const dx = (Math.random()*2-1)*55;
+      const dy = -20 - Math.random()*100;
+      const scale = 1.4 + Math.random()*1.4;
+      const dur = 900 + Math.random()*600;
+      s.animate([
+        { transform:'translate(-50%,-50%) scale(.4)', opacity:.0 },
+        { transform:'translate(calc(-50% + 0px), calc(-50% + -10px)) scale(1)', opacity:.35, offset:.15 },
+        { transform:`translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(${scale})`, opacity:0 }
+      ], { duration:dur, easing:'ease-out', fill:'forwards' });
+      setTimeout(()=>s.remove(), dur+40);
+    }
+  }
+
+  function breakPumpkin(){
+    if(completed) return;
+    completed = true;
+    follow = false;
+
+    const rect = pumpkin.getBoundingClientRect();
+    const cols = 6, rows = 6;
+    const iw = pumpkinImg.naturalWidth;
+    const ih = pumpkinImg.naturalHeight;
+    const cellW = rect.width / cols;
+    const cellH = rect.height / rows;
+
+    pumpkin.classList.add('hidden');
+    createSmokeBurst(rect.left + rect.width/2, rect.top + rect.height*0.18);
+
+    for(let ry=0; ry<rows; ry++){
+      for(let cx=0; cx<cols; cx++){
+        const piece = document.createElement('canvas');
+        piece.className = 'fragment';
+        piece.width = Math.ceil(cellW);
+        piece.height = Math.ceil(cellH);
+        piece.style.left = (rect.left + cx*cellW) + 'px';
+        piece.style.top = (rect.top + ry*cellH) + 'px';
+        piece.style.width = cellW + 'px';
+        piece.style.height = cellH + 'px';
+
+        const ctx = piece.getContext('2d');
+        ctx.drawImage(
+          pumpkinImg,
+          cx * (iw / cols),
+          ry * (ih / rows),
+          (iw / cols),
+          (ih / rows),
+          0, 0, piece.width, piece.height
+        );
+        app.appendChild(piece);
+
+        const baseX = rect.left + rect.width/2;
+        const finalX = baseX + (cx - (cols-1)/2) * (18 + Math.random()*18);
+        const floorY = window.innerHeight - 16 - piece.height - Math.random()*10;
+        const finalY = floorY;
+        const dx = finalX - (rect.left + cx*cellW);
+        const dy = finalY - (rect.top + ry*cellH);
+        const rot = (Math.random()*120 - 60);
+        const dur = 520 + Math.random()*180;
+
+        piece.animate([
+          { transform:'translate(0,0) rotate(0deg)', opacity:1 },
+          { transform:`translate(${dx}px, ${dy}px) rotate(${rot}deg)`, opacity:1, offset:.42 },
+          { transform:`translate(${dx}px, ${dy}px) rotate(${rot}deg)`, opacity:1, offset:.86 },
+          { transform:`translate(${dx}px, ${dy}px) rotate(${rot}deg)`, opacity:0 }
+        ], {
+          duration: 3000,
+          easing:'cubic-bezier(.2,.76,.22,1)',
+          fill:'forwards'
+        });
+
+        setTimeout(() => piece.remove(), 3050);
+      }
+    }
+
+    setTimeout(() => {
+      nativePost('close');
+      // fallback for non-native mode
+      document.body.innerHTML = '';
+    }, 3200);
+  }
+
+  document.addEventListener('pointermove', (e) => {
+    maybeFollow(e.clientX, e.clientY);
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if(e.key === 'Escape'){
+      nativePost('close');
+      document.body.innerHTML = '';
+    } else if(e.key.toLowerCase() === 'r'){
+      completed = false;
+      follow = false;
+      tilt = 0;
+      pumpkin.classList.remove('hidden');
+      setPumpkin(window.innerWidth * 0.74, window.innerHeight * 0.30);
+    }
+  });
+
+  window.addEventListener('resize', () => {
+    setPumpkin(pos.x, pos.y);
+  });
+
+  setPumpkin(pos.x, pos.y);
+})();
+</script>
+</body>
+</html>
