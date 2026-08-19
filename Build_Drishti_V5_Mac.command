@@ -2,14 +2,14 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-APP="$HOME/Desktop/Drishti V5.1.app"
+APP="$HOME/Desktop/Drishti V5.2.app"
 CONTENTS="$APP/Contents"
 MACOS="$CONTENTS/MacOS"
 RES="$CONTENTS/Resources"
 
 echo ""
 echo "========================================"
-echo "  Building Drishti V5.1 — Native Physics"
+echo "  Building Drishti V5.2 — Native Physics"
 echo "========================================"
 echo ""
 
@@ -35,6 +35,7 @@ xcrun swiftc \
 
 echo "Copying realistic assets..."
 cp "$SCRIPT_DIR/Resources/pumpkin_camphor.png" "$RES/"
+cp "$SCRIPT_DIR/Resources/camphor_flame_live.png" "$RES/"
 cp "$SCRIPT_DIR/Resources/impact_crack.wav" "$RES/"
 cp "$SCRIPT_DIR/Resources/Info.plist" "$CONTENTS/Info.plist"
 
@@ -67,7 +68,7 @@ echo ""
 echo "Created:"
 echo "  $APP"
 echo ""
-echo "From now on, simply double-click Drishti V5.1.app."
+echo "From now on, simply double-click Drishti V5.2.app."
 echo "No Xcode window needs to be open."
 echo ""
 open -R "$APP"

@@ -21,21 +21,24 @@ final class RitualScene: SKScene, SKPhysicsContactDelegate {
     private var state: State = .waitingForTouch
 
     private let pumpkin = SKSpriteNode(imageNamed: "pumpkin_camphor")
+    private let liveFlame = SKSpriteNode(imageNamed: "camphor_flame_live")
     private let glow = SKSpriteNode()
     private let smokeEmitter = SKEmitterNode()
+    private let emberEmitter = SKEmitterNode()
 
     private var springVelocity = CGVector.zero
     private var lastUpdateTime: TimeInterval = 0
     private var lastPointerPosition = CGPoint.zero
+    private var attachOffset = CGPoint.zero
 
     private var impactSound: NSSound?
     private var debrisNodes: [SKNode] = []
 
     // Tuning — intentionally no visible settings UI.
     private let displayWidth: CGFloat = 250
-    private let springStrength: CGFloat = 26
-    private let springDamping: CGFloat = 7.2
-    private let attachHitScale: CGFloat = 0.43
+    // High responsiveness: follows the pointer closely without looking mechanically locked.
+    private let followResponsiveness: CGFloat = 72
+    private let attachHitScale: CGFloat = 0.47
     private let fallReleaseDistance: CGFloat = 72
     private let debrisHoldTime: TimeInterval = 3.0
     private let debrisFadeTime: TimeInterval = 0.42
@@ -49,8 +52,10 @@ final class RitualScene: SKScene, SKPhysicsContactDelegate {
 
         setupFloor()
         setupPumpkin()
+        setupLiveFlame()
         setupGlow()
         setupSmoke()
+        setupEmbers()
         loadImpactSound()
     }
 
@@ -74,6 +79,26 @@ final class RitualScene: SKScene, SKPhysicsContactDelegate {
         pumpkin.zPosition = 30
         pumpkin.alpha = 1
         addChild(pumpkin)
+    }
+
+    private func setupLiveFlame() {
+        // This layer comes from the same real photographed camphor flame used in
+        // the pumpkin asset. It is separated so the flame can move/flicker
+        // independently instead of looking frozen onto the pumpkin.
+        let sourceWidth: CGFloat = 1254
+        let sourceHeight: CGFloat = 1254
+        let cropWidth: CGFloat = 420
+        let cropHeight: CGFloat = 300
+
+        liveFlame.size = CGSize(
+            width: pumpkin.size.width * (cropWidth / sourceWidth),
+            height: pumpkin.size.height * (cropHeight / sourceHeight)
+        )
+        liveFlame.zPosition = 34
+        liveFlame.alpha = 0.68
+        liveFlame.blendMode = .alpha
+        addChild(liveFlame)
+        syncEffectsToPumpkin()
     }
 
     private func setupGlow() {
@@ -110,6 +135,29 @@ final class RitualScene: SKScene, SKPhysicsContactDelegate {
         syncEffectsToPumpkin()
     }
 
+    private func setupEmbers() {
+        emberEmitter.particleBirthRate = 2.4
+        emberEmitter.particleLifetime = 0.72
+        emberEmitter.particleLifetimeRange = 0.26
+        emberEmitter.particlePositionRange = CGVector(dx: 12, dy: 5)
+        emberEmitter.particleSpeed = 22
+        emberEmitter.particleSpeedRange = 17
+        emberEmitter.emissionAngle = .pi / 2
+        emberEmitter.emissionAngleRange = 1.05
+        emberEmitter.particleAlpha = 0.85
+        emberEmitter.particleAlphaRange = 0.12
+        emberEmitter.particleAlphaSpeed = -1.05
+        emberEmitter.particleScale = 0.055
+        emberEmitter.particleScaleRange = 0.025
+        emberEmitter.particleScaleSpeed = -0.035
+        emberEmitter.particleColor = NSColor(calibratedRed: 1.0, green: 0.33, blue: 0.04, alpha: 1)
+        emberEmitter.particleColorBlendFactor = 1.0
+        emberEmitter.particleTexture = makeGlowTexture(size: CGSize(width: 24, height: 24))
+        emberEmitter.zPosition = 35
+        addChild(emberEmitter)
+        syncEffectsToPumpkin()
+    }
+
     private func loadImpactSound() {
         if let url = Bundle.main.url(forResource: "impact_crack", withExtension: "wav") {
             impactSound = NSSound(contentsOf: url, byReference: false)
@@ -117,10 +165,12 @@ final class RitualScene: SKScene, SKPhysicsContactDelegate {
     }
 
     private func globalPointerInScene() -> CGPoint {
-        guard let screen = NSScreen.main else { return lastPointerPosition }
+        guard let screen = self.view?.window?.screen ?? NSScreen.main else {
+            return lastPointerPosition
+        }
         let global = NSEvent.mouseLocation
-        return CGPoint(x: global.x - screen.frame.origin.x,
-                       y: global.y - screen.frame.origin.y)
+        return CGPoint(x: global.x - screen.frame.minX,
+                       y: global.y - screen.frame.minY)
     }
 
     override func update(_ currentTime: TimeInterval) {
@@ -140,6 +190,11 @@ final class RitualScene: SKScene, SKPhysicsContactDelegate {
         switch state {
         case .waitingForTouch:
             if pointerTouchesPumpkin(pointer) {
+                attachOffset = CGPoint(
+                    x: pumpkin.position.x - pointer.x,
+                    y: pumpkin.position.y - pointer.y
+                )
+                springVelocity = .zero
                 state = .attached
             }
 
@@ -161,7 +216,7 @@ final class RitualScene: SKScene, SKPhysicsContactDelegate {
             break
         }
 
-        if state == .waitingForTouch || state == .attached {
+        if state == .waitingForTouch || state == .attached || state == .falling {
             updateFlameFlicker(currentTime)
             syncEffectsToPumpkin()
         }
@@ -175,28 +230,38 @@ final class RitualScene: SKScene, SKPhysicsContactDelegate {
     }
 
     private func updateAttachedMotion(pointer: CGPoint, dt: CGFloat) {
-        // Spring-damper follow gives the pumpkin weight and a slight lag.
-        let dx = pointer.x - pumpkin.position.x
-        let dy = pointer.y - pumpkin.position.y
+        // Preserve the exact point the cursor touched on the pumpkin.
+        // This prevents the old "center chasing the pointer" sensation.
+        let target = CGPoint(
+            x: pointer.x + attachOffset.x,
+            y: pointer.y + attachOffset.y
+        )
 
-        springVelocity.dx += dx * springStrength * dt
-        springVelocity.dy += dy * springStrength * dt
+        let previous = pumpkin.position
 
-        let damping = CGFloat(Foundation.exp(Double(-springDamping * dt)))
-        springVelocity.dx *= damping
-        springVelocity.dy *= damping
+        // Frame-rate-independent exponential smoothing.
+        // At normal display rates this closes most of the distance every frame,
+        // leaving only a tiny amount of physical weight.
+        let response = 1.0 - CGFloat(
+            Foundation.exp(Double(-followResponsiveness * dt))
+        )
 
-        pumpkin.position.x += springVelocity.dx * dt
-        pumpkin.position.y += springVelocity.dy * dt
+        pumpkin.position.x += (target.x - pumpkin.position.x) * response
+        pumpkin.position.y += (target.y - pumpkin.position.y) * response
 
-        // Keep the object visible while the user moves it around.
         let halfW = pumpkin.size.width * 0.36
         let halfH = pumpkin.size.height * 0.33
         pumpkin.position.x = min(max(pumpkin.position.x, halfW), size.width - halfW)
         pumpkin.position.y = min(max(pumpkin.position.y, halfH), size.height - halfH)
 
-        let desiredTilt = max(-0.22, min(0.22, -springVelocity.dx * 0.00075))
-        pumpkin.zRotation += (desiredTilt - pumpkin.zRotation) * min(1, dt * 7.5)
+        if dt > 0.0001 {
+            springVelocity.dx = (pumpkin.position.x - previous.x) / dt
+            springVelocity.dy = (pumpkin.position.y - previous.y) / dt
+        }
+
+        // Small natural tilt only. The pointer tracking remains tight.
+        let desiredTilt = max(-0.16, min(0.16, -springVelocity.dx * 0.00032))
+        pumpkin.zRotation += (desiredTilt - pumpkin.zRotation) * min(1, dt * 15.0)
     }
 
     private func beginFalling() {
@@ -239,8 +304,11 @@ final class RitualScene: SKScene, SKPhysicsContactDelegate {
         impactSound?.play()
 
         smokeEmitter.particleBirthRate = 0
-        smokeEmitter.run(.fadeOut(withDuration: 0.16))
-        glow.run(.fadeOut(withDuration: 0.12))
+        emberEmitter.particleBirthRate = 0
+        smokeEmitter.run(.fadeOut(withDuration: 0.18))
+        emberEmitter.run(.fadeOut(withDuration: 0.10))
+        liveFlame.run(.fadeOut(withDuration: 0.08))
+        glow.run(.fadeOut(withDuration: 0.10))
 
         let sourceTexture = pumpkin.texture
         let originalPosition = pumpkin.position
@@ -374,20 +442,63 @@ final class RitualScene: SKScene, SKPhysicsContactDelegate {
     }
 
     private func syncEffectsToPumpkin() {
-        // Asset contains the photographic flame; these subtle effects only add life.
-        glow.position = CGPoint(x: pumpkin.position.x,
-                                y: pumpkin.position.y + pumpkin.size.height * 0.31)
+        // Alignment of the separated flame crop relative to the original
+        // 1254x1254 photographic asset.
+        let scale = pumpkin.size.width / 1254.0
+
+        // Crop center in original image: (640, 220) with top-left coordinates.
+        // Convert it to an offset from the full-image center in SpriteKit space.
+        let localX: CGFloat = (640.0 - 627.0) * scale
+        let localY: CGFloat = ((1254.0 - 220.0) - 627.0) * scale
+
+        let c = cos(pumpkin.zRotation)
+        let sn = sin(pumpkin.zRotation)
+        let rotatedX = localX * c - localY * sn
+        let rotatedY = localX * sn + localY * c
+
+        liveFlame.position = CGPoint(
+            x: pumpkin.position.x + rotatedX,
+            y: pumpkin.position.y + rotatedY
+        )
+
+        // Real flames remain more vertical than the pumpkin body while moving.
+        let motionLean = max(-0.13, min(0.13, -springVelocity.dx * 0.00020))
+        liveFlame.zRotation = pumpkin.zRotation * 0.20 + motionLean
+
+        glow.position = CGPoint(
+            x: liveFlame.position.x,
+            y: liveFlame.position.y - 9
+        )
         glow.zRotation = 0
 
-        smokeEmitter.position = CGPoint(x: pumpkin.position.x + 2,
-                                        y: pumpkin.position.y + pumpkin.size.height * 0.39)
+        smokeEmitter.position = CGPoint(
+            x: liveFlame.position.x + 7,
+            y: liveFlame.position.y + liveFlame.size.height * 0.28
+        )
+
+        emberEmitter.position = CGPoint(
+            x: liveFlame.position.x,
+            y: liveFlame.position.y - liveFlame.size.height * 0.30
+        )
     }
 
     private func updateFlameFlicker(_ time: TimeInterval) {
         let t = CGFloat(time)
-        glow.alpha = 0.20 + 0.06 * (0.5 + 0.5 * sin(t * 17.0))
-        let scale = 0.96 + 0.07 * (0.5 + 0.5 * sin(t * 13.0 + 1.1))
-        glow.setScale(scale)
+
+        // Multiple non-matching frequencies avoid a repetitive "GIF" look.
+        let fast = sin(t * 19.7)
+        let mid = sin(t * 12.3 + 0.8)
+        let slow = sin(t * 7.1 + 2.2)
+
+        liveFlame.alpha = 0.64 + 0.12 * (0.5 + 0.5 * fast)
+        liveFlame.xScale = 0.98 + 0.035 * mid
+        liveFlame.yScale = 0.98 + 0.075 * fast + 0.020 * slow
+
+        glow.alpha = 0.19 + 0.08 * (0.5 + 0.5 * mid)
+        let glowScale = 0.94 + 0.10 * (0.5 + 0.5 * slow)
+        glow.setScale(glowScale)
+
+        emberEmitter.particleBirthRate = 1.8 + 1.6 * (0.5 + 0.5 * fast)
     }
 
     private func makeGlowTexture(size: CGSize) -> SKTexture {
@@ -482,6 +593,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         skView.wantsLayer = true
         skView.layer?.backgroundColor = NSColor.clear.cgColor
         skView.ignoresSiblingOrder = true
+        skView.preferredFramesPerSecond = 120
 
         let scene = RitualScene(size: frame.size)
         scene.scaleMode = .resizeFill

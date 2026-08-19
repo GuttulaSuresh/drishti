@@ -1,43 +1,35 @@
-DRISHTI V5.1 — NATIVE PHYSICS PROTOTYPE
-=====================================
+DRISHTI V5.2 — CAMPhOR + MOUSE FOLLOW UPDATE
+============================================
 
-This is a fresh native macOS rebuild. It is not HTML/WebView.
+This build focuses specifically on your two pieces of feedback.
 
-WHAT YOU SHOULD SEE
-- Double-click Drishti V5.1.app.
-- Only a realistic plain pumpkin/ash-gourd with burning camphor appears.
-- No app panel, text, counter, instructions, buttons, borders, or background.
-- The browser/photo/social-media screen underneath remains visible.
+1. FASTER / CORRECT MOUSE FOLLOW
+- The cursor no longer pulls the center of the pumpkin toward itself.
+- The app remembers the exact point where the mouse first touches the pumpkin.
+- That same touched point stays with the pointer.
+- Follow response has been increased substantially.
+- Rendering requests up to 120 FPS on supported Macs.
+- There is still a very small amount of weight/tilt so it doesn't look like a flat sticker.
 
-MOUSE EXPERIENCE
-- No click is required.
-- When the mouse pointer touches the pumpkin, the pumpkin attaches automatically.
-- It follows with spring/inertia so it has weight instead of being rigidly glued to the pointer.
-- You can move clockwise, anticlockwise, randomly, one round, ten rounds, or no rounds.
+2. MORE LIFELIKE CAMPHOR
+- V5.1 used a photographic flame that could still look visually frozen.
+- V5.2 extracts the real photographed flame into a separate live layer.
+- The live layer independently changes height, width, opacity and lean.
+- Its motion uses several different frequencies so the flicker doesn't simply repeat.
+- Smoke has its own particle motion.
+- Small ember particles now come from the burning camphor.
+- Warm glow changes in brightness and reflects around the top of the pumpkin.
+- Flame, embers and glow extinguish immediately when the pumpkin hits the bottom.
 
-BOTTOM IMPACT
-- Drag the pumpkin toward the bottom.
-- Near the bottom it releases into gravity.
-- It physically hits the bottom edge and shatters.
-- Pieces, fragments, and seeds use SpriteKit physics: they bounce, rotate, collide, and settle.
-- The flame/smoke disappears on impact.
-- Debris stays on the bottom for about 3 seconds.
-- Debris fades and the app closes automatically.
+3. SMASH
+- The existing native SpriteKit physics smash is retained because that part was working better.
+- Shell fragments and seeds bounce and settle.
+- They stay at the bottom for about 3 seconds, then fade and the app quits.
 
-IMPORTANT
-The transparent overlay ignores mouse clicks, so the app underneath can still receive clicks.
-The Drishti app only watches the current mouse location to detect when the pointer touches the pumpkin.
-
-ONE-TIME BUILD
-1. Unzip the package.
+INSTALL
+1. Unzip this V5.2 folder.
 2. Double-click Build_Drishti_V5_Mac.command.
-3. The script creates "Drishti V5.1.app" on your Desktop.
-4. After that, use the app directly by double-clicking it.
+3. The builder creates "Drishti V5.2.app" on your Desktop.
+4. Double-click the app whenever you want to use it.
 
-Apple Command Line Tools are needed only for that one-time compilation. Xcode does not have to stay open while using the app.
-
-This build targets macOS 13+.
-
-
-V5.1 FIX
-- Corrected the macOS SpriteKit seed physics body initializer that caused the ellipseOf compile error.
+No visible app controls are shown during the ritual.
