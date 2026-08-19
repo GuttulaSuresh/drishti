@@ -338,7 +338,7 @@ final class RitualScene: SKScene, SKPhysicsContactDelegate {
             seed.zPosition = 28
             seed.zRotation = CGFloat.random(in: 0...(2 * .pi))
 
-            let body = SKPhysicsBody(ellipseOf: CGSize(width: 6, height: 3))
+            let body = SKPhysicsBody(rectangleOf: CGSize(width: 6, height: 3))
             body.mass = 0.006
             body.restitution = 0.22
             body.friction = 0.76

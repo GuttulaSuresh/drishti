@@ -1,10 +1,10 @@
-DRISHTI V5 — NATIVE PHYSICS PROTOTYPE
+DRISHTI V5.1 — NATIVE PHYSICS PROTOTYPE
 =====================================
 
 This is a fresh native macOS rebuild. It is not HTML/WebView.
 
 WHAT YOU SHOULD SEE
-- Double-click Drishti V5.app.
+- Double-click Drishti V5.1.app.
 - Only a realistic plain pumpkin/ash-gourd with burning camphor appears.
 - No app panel, text, counter, instructions, buttons, borders, or background.
 - The browser/photo/social-media screen underneath remains visible.
@@ -31,9 +31,13 @@ The Drishti app only watches the current mouse location to detect when the point
 ONE-TIME BUILD
 1. Unzip the package.
 2. Double-click Build_Drishti_V5_Mac.command.
-3. The script creates "Drishti V5.app" on your Desktop.
+3. The script creates "Drishti V5.1.app" on your Desktop.
 4. After that, use the app directly by double-clicking it.
 
 Apple Command Line Tools are needed only for that one-time compilation. Xcode does not have to stay open while using the app.
 
 This build targets macOS 13+.
+
+
+V5.1 FIX
+- Corrected the macOS SpriteKit seed physics body initializer that caused the ellipseOf compile error.

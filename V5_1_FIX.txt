@@ -1,0 +1,15 @@
+V5.1 COMPILE FIX
+
+If you already have the V5 folder and prefer to patch it manually:
+
+Open Source/DrishtiV5.swift and replace:
+
+    let body = SKPhysicsBody(ellipseOf: CGSize(width: 6, height: 3))
+
+with:
+
+    let body = SKPhysicsBody(rectangleOf: CGSize(width: 6, height: 3))
+
+Then run Build_Drishti_V5_Mac.command again.
+
+The V5.1 package already contains this correction.

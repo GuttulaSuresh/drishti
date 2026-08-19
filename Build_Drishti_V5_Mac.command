@@ -2,14 +2,14 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-APP="$HOME/Desktop/Drishti V5.app"
+APP="$HOME/Desktop/Drishti V5.1.app"
 CONTENTS="$APP/Contents"
 MACOS="$CONTENTS/MacOS"
 RES="$CONTENTS/Resources"
 
 echo ""
 echo "========================================"
-echo "  Building Drishti V5 — Native Physics"
+echo "  Building Drishti V5.1 — Native Physics"
 echo "========================================"
 echo ""
 
@@ -67,7 +67,7 @@ echo ""
 echo "Created:"
 echo "  $APP"
 echo ""
-echo "From now on, simply double-click Drishti V5.app."
+echo "From now on, simply double-click Drishti V5.1.app."
 echo "No Xcode window needs to be open."
 echo ""
 open -R "$APP"
